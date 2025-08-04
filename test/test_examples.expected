@@ -766,6 +766,18 @@ def _fp8_attention_kernel_kernel(q, k, v, out, out_stride_0, heads, _RDIM_SIZE_2
         tl.store(out + (symnode_0 * out_stride_0 + symnode_1 * 16384 + indices_4[:, None] * 64 + indices_5[None, :] * 1), v_12, None)
 
 def fp8_attention_kernel(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, batch: int, heads: int, *, _launcher=_default_launcher):
+    """
+    Computes scaled dot-product attention using FP8 precision.
+    Implements the attention with FP8 tensors for improved performance and memory efficiency.
+    Args:
+        q: Query tensor of shape [batch*heads, seq, dim] in FP8 format
+        k: Key tensor of shape [batch*heads, seq, dim] in FP8 format
+        v: Value tensor of shape [batch*heads, dim, seq] (pre-transposed) in FP8 format
+        batch: Number of batches
+        heads: Number of attention heads
+    Returns:
+        Output tensor of shape [batch, heads, seq_len, head_dim] in FP8 format
+    """
     batch_heads = q.size(0)
     seq_len = q.size(1)
     head_dim = q.size(2)
@@ -807,18 +819,16 @@ def _fp8_gemm_kernel(x, y, out, _BLOCK_SIZE_0: tl.constexpr, _BLOCK_SIZE_1: tl.c
     tl.store(out + (indices_0[:, None] * 256 + indices_1[None, :] * 1), v_0, None)
 
 def fp8_gemm(x: torch.Tensor, y: torch.Tensor, *, _launcher=_default_launcher):
-    """FP8 General Matrix Multiplication (GEMM).
-
+    """
+    FP8 General Matrix Multiplication (GEMM).
     This kernel demonstrates FP8 computation in Helion.
     When lowered to Triton, the tl.dot operation will handle
     FP8 inputs natively and accumulate to FP32.
-
     Args:
-        x: Input tensor of shape [m, k] in FP8 format
-        y: Input tensor of shape [k, n] in FP8 format
-
+        x (torch.Tensor): Input tensor of shape [m, k] in FP8 format.
+        y (torch.Tensor): Input tensor of shape [k, n] in FP8 format.
     Returns:
-        Output tensor of shape [m, n] in FP16 format
+        torch.Tensor: Output tensor of shape [m, n] in FP16 format.
     """
     m, k = x.size()
     k2, n = y.size()
@@ -1310,18 +1320,18 @@ def _matmul_split_k_kernel(x, y, out, _BLOCK_SIZE_0: tl.constexpr, _BLOCK_SIZE_1
 
 def matmul_split_k(x: torch.Tensor, y: torch.Tensor, epilogue: Callable[[torch.Tensor, tuple[torch.Tensor, ...]], torch.Tensor]=lambda acc, tile: acc, *, _launcher=_default_launcher):
     """
-    Performs matrix multiplication using split-K algorithm for better parallelism.
-
-    Split-K divides the reduction dimension (K) into multiple chunks that can be processed
-    in parallel, with results atomically accumulated at the end.
-
+    Matrix multiplication kernel using split-K parallelism.
+    This kernel splits the reduction (K) dimension into multiple fragments to improve
+    parallelism and performance, especially for large K. The results from each split
+    are accumulated atomically into the output tensor. An optional epilogue function
+    can be applied to the accumulator, e.g., for adding bias.
     Args:
-        x: First input tensor of shape [M, K]
-        y: Second input tensor of shape [K, N]
-        epilogue: epilogue lambda
-
+        x (torch.Tensor): Left input matrix of shape [m, k].
+        y (torch.Tensor): Right input matrix of shape [k, n].
+        epilogue (Callable, optional): Function applied to the accumulator and tile indices
+            after the matmul. Defaults to identity (no change).
     Returns:
-        Output tensor of shape [M, N] containing the result of matrix multiplication
+        torch.Tensor: Resulting matrix of shape [m, n].
     """
     m, k = x.size()
     k2, n = y.size()
