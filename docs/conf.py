@@ -6,8 +6,19 @@ from __future__ import annotations
 
 import os
 import sys
+from typing import Callable
+from typing import Protocol
 
 # -- Path setup --------------------------------------------------------------
+
+
+class SphinxApp(Protocol):
+    """Protocol for Sphinx application objects."""
+
+    def connect(self, event: str, callback: Callable[..., None]) -> None:
+        """Connect an event handler to a Sphinx event."""
+        ...
+
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here.
@@ -114,7 +125,9 @@ always_document_param_types = True
 typehints_document_rtype = True
 
 
-def remove_sphinx_gallery_content(app: object, docname: str, source: list[str]) -> None:
+def remove_sphinx_gallery_content(
+    app: SphinxApp, docname: str, source: list[str]
+) -> None:
     """
     Remove sphinx-gallery generated content from the examples index.rst file.
     This runs after sphinx-gallery generates the file but before the site is built.
@@ -148,7 +161,7 @@ def remove_sphinx_gallery_content(app: object, docname: str, source: list[str]) 
         source[0] = "\n".join(new_lines)
 
 
-def setup(app: object) -> dict[str, str]:
+def setup(app: SphinxApp) -> dict[str, str]:
     """Setup function to register the event handler."""
     app.connect("source-read", remove_sphinx_gallery_content)
     return {"version": "0.1"}
