@@ -43,7 +43,8 @@ docs = [
     "sphinx-autodoc-typehints",
     "linkify-it-py",
     "sphinx-autobuild",
-    "sphinxext-opengraph"
+    "sphinxext-opengraph",
+    "pillow",
 ]
 
 [project.urls]
