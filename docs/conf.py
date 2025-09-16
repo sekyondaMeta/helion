@@ -94,6 +94,8 @@ html_theme_path = [pytorch_sphinx_theme2.get_html_theme_path()]
 html_theme_options = {
     "navigation_with_keys": False,
     "analytics_id": "GTM-T8XT4PS",
+    "show_lf_header": False,
+    "show_lf_footer": False,
     "logo": {
         "text": "",
     },
