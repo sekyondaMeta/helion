@@ -42,7 +42,8 @@ docs = [
     "sphinx-sitemap==2.7.1",
     "sphinx-autodoc-typehints",
     "linkify-it-py",
-    "sphinx-autobuild"
+    "sphinx-autobuild",
+    "sphinxext-opengraph"
 ]
 
 [project.urls]
