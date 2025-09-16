@@ -6,8 +6,9 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Callable
-from typing import Protocol
+from typing import Callable, Protocol
+
+import pytorch_sphinx_theme2
 
 # -- Path setup --------------------------------------------------------------
 
@@ -22,7 +23,7 @@ class SphinxApp(Protocol):
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here.
-sys.path.insert(0, os.path.abspath(".."))
+sys.path.insert(0, os.path.abspath("."))
 
 # -- Project information -----------------------------------------------------
 
@@ -39,6 +40,12 @@ extensions = [
     "myst_parser",
     "sphinx_autodoc_typehints",
     "sphinx_gallery.gen_gallery",
+    "sphinx_design",
+    "sphinx_sitemap",
+    "sphinxcontrib.mermaid",
+    "pytorch_sphinx_theme2",
+    "sphinxext.opengraph",
+    "sphinx.ext.linkcode",
 ]
 
 # MyST parser configuration
@@ -81,7 +88,61 @@ source_suffix = {
 
 # -- Options for HTML output -------------------------------------------------
 
-html_theme = "sphinx_rtd_theme"
+html_theme = "pytorch_sphinx_theme2"
+html_theme_path = [pytorch_sphinx_theme2.get_html_theme_path()]
+
+html_theme_options = {
+    "navigation_with_keys": False,
+    "analytics_id": "GTM-T8XT4PS",
+    "logo": {
+        "text": "",
+    },
+    "icon_links": [
+        {
+            "name": "X",
+            "url": "https://x.com/PyTorch",
+            "icon": "fa-brands fa-x-twitter",
+        },
+        {
+            "name": "GitHub",
+            "url": "https://github.com/pytorch/<your-repo>",
+            "icon": "fa-brands fa-github",
+        },
+        {
+            "name": "Discourse",
+            "url": "https://dev-discuss.pytorch.org/",
+            "icon": "fa-brands fa-discourse",
+        },
+        {
+            "name": "PyPi",
+            "url": "https://pypi.org/project/<your-project>/",
+            "icon": "fa-brands fa-python",
+        },
+    ],
+    "use_edit_page_button": True,
+    "navbar_center": "navbar-nav",
+}
+
+theme_variables = pytorch_sphinx_theme2.get_theme_variables()
+templates_path = [
+    "_templates",
+    os.path.join(os.path.dirname(pytorch_sphinx_theme2.__file__), "templates"),
+]
+
+html_context = {
+    "theme_variables": theme_variables,
+    "display_github": True,
+    "github_url": "https://github.com",
+    "github_user": "pytorch",
+    "github_repo": "<your-repo>",
+    "feedback_url": "https://github.com/pytorch/<path-to-your-repo>",
+    "github_version": "main",
+    "doc_path": "docs/source",
+    "library_links": theme_variables.get("library_links", []),
+    "community_links": theme_variables.get("community_links", []),
+    "language_bindings_links": html_theme_options.get("language_bindings_links", []),
+}
+
 html_static_path = ["_static"]
 
 # Output directory for HTML files
@@ -165,3 +226,38 @@ def setup(app: SphinxApp) -> dict[str, str]:
     """Setup function to register the event handler."""
     app.connect("source-read", remove_sphinx_gallery_content)
     return {"version": "0.1"}
+
+
+def linkcode_resolve(domain, info):
+    if domain != "py":
+        return None
+    if not info["module"]:
+        return None
+
+    try:
+        module = __import__(info["module"], fromlist=[""])
+        obj = module
+        for part in info["fullname"].split("."):
+            obj = getattr(obj, part)
+        # Get the source file and line number
+        obj = inspect.unwrap(obj)
+        fn = inspect.getsourcefile(obj)
+        source, lineno = inspect.getsourcelines(obj)
+    except Exception:
+        return None
+
+    # Determine the tag based on the torch_version
+    if RELEASE:
+        version_parts = torch_version.split(
+            "."
+        )  # For release versions, format as "vX.Y.Z" for correct path in repo
+        patch_version = (
+            version_parts[2].split("+")[0].split("a")[0]
+        )  # assuming a0 always comes after release version in versions.txt
+        version_path = f"v{version_parts[0]}.{version_parts[1]}.{patch_version}"
+    else:
+        version_path = torch.version.git_version
+    fn = os.path.relpath(fn, start=os.path.dirname(torch.__file__))
+    return (
+        f"https://github.com/pytorch/pytorch/blob/{version_path}/torch/{fn}#L{lineno}"
+    )
