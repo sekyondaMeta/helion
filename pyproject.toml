@@ -32,8 +32,8 @@ docs = [
     "sphinx==7.2.6",
     "pytorch_sphinx_theme2 @ git+https://github.com/pytorch/pytorch_sphinx_theme.git@pytorch_sphinx_theme2#egg=pytorch_sphinx_theme2",
     "sphinxcontrib.katex==0.9.10",
-    "breathe",  # only if generating C++
-    "exhale",  # only if generating C++ docs
+    #"breathe",  # only if generating C++
+    #"exhale",  # only if generating C++ docs
     "docutils==0.18.1,<0.21",
     "sphinx-design==0.6.1",
     "sphinxcontrib-mermaid==1.0.0",
