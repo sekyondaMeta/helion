@@ -83,8 +83,11 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "README.md"]
 # The suffix(es) of source filenames.
 source_suffix = {
     ".rst": "restructuredtext",
-    ".md": "markdown",
+    ".md": "myst-nb",
 }
+
+# Explicitly register myst_nb as the parser for markdown
+source_parsers = {".md": "myst_nb"}
 
 # -- Options for HTML output -------------------------------------------------
 
