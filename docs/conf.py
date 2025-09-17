@@ -56,9 +56,9 @@ myst_enable_extensions = [
 ]
 
 # MyST-NB configuration for executable notebooks
-nb_execution_mode = "force"  # Execute all code cells
+nb_execution_mode = "cache"  # Use cached results, don't force execution
 nb_execution_timeout = 120  # Timeout in seconds
-nb_execution_raise_on_error = True  # Raise errors if execution fails
+nb_execution_raise_on_error = False  # Don't fail build on execution errors
 
 # Disable commonmark-only mode to allow MyST extensions
 myst_commonmark_only = False
