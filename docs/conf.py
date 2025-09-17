@@ -35,6 +35,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
+    "myst_parser",
     "myst_nb",
     "sphinx_autodoc_typehints",
     "sphinx_gallery.gen_gallery",
@@ -59,6 +60,9 @@ myst_enable_extensions = [
 nb_execution_mode = "force"  # Execute all code cells
 nb_execution_timeout = 120  # Timeout in seconds
 nb_execution_raise_on_error = True  # Raise errors if execution fails
+
+# Disable commonmark-only mode to allow MyST extensions
+myst_commonmark_only = False
 
 sphinx_gallery_conf = {
     "examples_dirs": [

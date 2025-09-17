@@ -30,8 +30,8 @@ dev = [
 ]
 docs = [
     "sphinx",
-    "myst-parser>=2.0,<4.0",
-    "myst-nb>=1.0,<2.0",
+    "myst-parser",
+    "myst-nb",
     "sphinx-rtd-theme",
     "sphinx-autodoc-typehints",
     "linkify-it-py",
