@@ -33,6 +33,13 @@ from torch import Tensor
 
 # If you set this to info you will see the output Triton Code
 logging.getLogger().setLevel(logging.WARNING)
+
+# Device selection - use CUDA if available, otherwise CPU
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"Using device: {device}")
+
+if device == "cpu":
+    print("⚠️  Note: Running on CPU. For best performance, use a CUDA-enabled environment.")
 ```
 
 Let's also create a simple testing function to verify our implementations.
@@ -53,12 +60,18 @@ def test_kernel(kernel_fn, spec_fn, *args):
 
 def benchmark_kernel(kernel_fn, *args, **kwargs):
     """Benchmark a Helion kernel."""
+    if device == "cpu":
+        print("⏱ Benchmarking skipped on CPU")
+        return
     no_args = lambda: kernel_fn(*args, **kwargs)
     time_in_ms = do_bench(no_args)
     print(f"⏱ Time: {time_in_ms} ms")
 
 def compare_implementations(kernel_fn, spec_fn, *args, **kwargs):
     """Benchmark a Helion kernel and its reference implementation."""
+    if device == "cpu":
+        print("⏱ Performance comparison skipped on CPU")
+        return
     kernel_no_args = lambda: kernel_fn(*args, **kwargs)
     spec_no_args = lambda: spec_fn(*args, **kwargs)
     kernel_time = do_bench(kernel_no_args)
@@ -98,8 +111,8 @@ def example_add(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     return out  # Return the result back to the host
 
 # Create some sample data
-x = torch.randn(10, 10, device="cuda")
-y = torch.randn(10, 10, device="cuda")
+x = torch.randn(10, 10, device=device)
+y = torch.randn(10, 10, device=device)
 
 # Run the kernel
 result = example_add(x, y)
@@ -161,7 +174,7 @@ def add_kernel(x: torch.Tensor) -> torch.Tensor:
     return out
 
 # Test the kernel
-x = torch.randn(8192, device="cuda")
+x = torch.randn(8192, device=device)
 test_kernel(add_kernel, add_spec, x)
 benchmark_kernel(add_kernel, x)
 compare_implementations(add_kernel, add_spec, x)
@@ -190,7 +203,7 @@ def add_kernel(x: torch.Tensor) -> torch.Tensor:
     return out
 
 # Test the kernel
-x = torch.randn(8192, device="cuda")
+x = torch.randn(8192, device=device)
 test_kernel(add_kernel, add_spec, x)
 benchmark_kernel(add_kernel, x)
 compare_implementations(add_kernel, add_spec, x)
@@ -224,8 +237,8 @@ def broadcast_add_kernel(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     return out
 
 # Test the kernel
-x = torch.randn(1142, device="cuda")
-y = torch.randn(512, device="cuda")
+x = torch.randn(1142, device=device)
+y = torch.randn(512, device=device)
 test_kernel(broadcast_add_kernel, broadcast_add_spec, x, y)
 benchmark_kernel(broadcast_add_kernel, x, y)
 compare_implementations(broadcast_add_kernel, broadcast_add_spec, x, y)
@@ -259,8 +272,8 @@ def mul_relu_block_kernel(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     return out
 
 # Test the kernel
-x = torch.randn(512, device="cuda")
-y = torch.randn(512, device="cuda")
+x = torch.randn(512, device=device)
+y = torch.randn(512, device=device)
 test_kernel(mul_relu_block_kernel, mul_relu_block_spec, x, y)
 compare_implementations(mul_relu_block_kernel, mul_relu_block_spec, x, y)
 ```
@@ -305,9 +318,9 @@ def mul_relu_block_back_kernel(
     return dx, dy
 
 # Test the kernel
-x = torch.randn(512, 1024, device="cuda")
-y = torch.randn(512, device="cuda")
-dz = torch.randn(512, 1024, device="cuda")
+x = torch.randn(512, 1024, device=device)
+y = torch.randn(512, device=device)
+dz = torch.randn(512, 1024, device=device)
 test_kernel(mul_relu_block_back_kernel, mul_relu_block_back_spec, x, y, dz)
 ```
 
@@ -344,7 +357,7 @@ def sum_kernel(x: torch.Tensor) -> torch.Tensor:
     return out
 
 # Test the kernel
-x = torch.randn(4, 200, device="cuda")
+x = torch.randn(4, 200, device=device)
 test_kernel(sum_kernel, sum_spec, x)
 ```
 
@@ -392,7 +405,7 @@ def softmax_kernel(x: torch.Tensor) -> torch.Tensor:
     return out
 
 # Test the kernel
-x = torch.randn(4, 200, device="cuda")
+x = torch.randn(4, 200, device=device)
 test_kernel(softmax_kernel, softmax_spec, x)
 ```
 
@@ -456,9 +469,9 @@ def flashatt_kernel(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.
     return out
 
 # Test the kernel
-q = torch.randn(200, device="cuda")
-k = torch.randn(200, device="cuda")
-v = torch.randn(200, device="cuda")
+q = torch.randn(200, device=device)
+k = torch.randn(200, device=device)
+v = torch.randn(200, device=device)
 test_kernel(flashatt_kernel, flashatt_spec, q, k, v)
 ```
 
@@ -500,8 +513,8 @@ def conv2d_kernel(x: torch.Tensor, k: torch.Tensor) -> torch.Tensor:
     return out
 
 # Test the kernel
-x = torch.randn(4, 8, 8, device="cuda")
-k = torch.randn(4, 4, 4, device="cuda")
+x = torch.randn(4, 8, 8, device=device)
+k = torch.randn(4, 4, 4, device=device)
 test_kernel(conv2d_kernel, conv2d_spec, x, k)
 ```
 
@@ -543,8 +556,8 @@ def dot_kernel(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     return out
 
 # Test the kernel
-x = torch.randn(4, 32, 32, device="cuda")
-y = torch.randn(4, 32, 32, device="cuda")
+x = torch.randn(4, 32, 32, device=device)
+y = torch.randn(4, 32, 32, device=device)
 test_kernel(dot_kernel, dot_spec, x, y)
 ```
 
@@ -629,10 +642,10 @@ def quant_dot_kernel(scale: torch.Tensor, offset: torch.Tensor, weight: torch.Te
     return out
 
 # Test the kernel with smaller inputs for quicker testing
-scale = torch.randn(32, 8, device="cuda")
-offset = torch.randint(-10, 10, (32,), device="cuda")
-weight = torch.randint(0, 16, (32, 8), device="cuda", dtype=torch.int32)
-activation = torch.randn(64, 32, device="cuda")
+scale = torch.randn(32, 8, device=device)
+offset = torch.randint(-10, 10, (32,), device=device)
+weight = torch.randint(0, 16, (32, 8), device=device, dtype=torch.int32)
+activation = torch.randn(64, 32, device=device)
 test_kernel(quant_dot_kernel, quant_dot_spec, scale, offset, weight, activation)
 ```
 
@@ -662,21 +675,25 @@ def matmul_autotune(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     return out
 
 # Create larger tensors for better autotuning results
-x = torch.randn(1024, 1024, device="cuda")
-y = torch.randn(1024, 1024, device="cuda")
+x = torch.randn(1024, 1024, device=device)
+y = torch.randn(1024, 1024, device=device)
 
 # First run will trigger autotuning
-print("Running with autotuning (this might take a while)...")
-start = time.time()
-result = matmul_autotune(x, y)
-end = time.time()
-print(f"First run time (including autotuning): {end - start:.2f}s")
+if device == "cuda":
+    print("Running with autotuning (this might take a while)...")
+    start = time.time()
+    result = matmul_autotune(x, y)
+    end = time.time()
+    print(f"First run time (including autotuning): {end - start:.2f}s")
 
-# Second run will use the tuned configuration
-start = time.time()
-result = matmul_autotune(x, y)
-end = time.time()
-print(f"Second run time (using tuned config): {end - start:.2f}s")
+    # Second run will use the tuned configuration
+    start = time.time()
+    result = matmul_autotune(x, y)
+    end = time.time()
+    print(f"Second run time (using tuned config): {end - start:.2f}s")
+else:
+    print("⚠️  Autotuning example skipped on CPU (requires CUDA)")
+    result = matmul_autotune(x, y)
 
 # Verify correctness
 expected = x @ y
