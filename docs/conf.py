@@ -6,8 +6,7 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Callable
-from typing import Protocol
+from typing import Callable, Protocol
 
 # -- Path setup --------------------------------------------------------------
 
@@ -36,7 +35,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
-    "myst_parser",
+    "myst_nb",
     "sphinx_autodoc_typehints",
     "sphinx_gallery.gen_gallery",
 ]
@@ -55,6 +54,11 @@ myst_enable_extensions = [
     "substitution",
     "tasklist",
 ]
+
+# MyST-NB configuration for executable notebooks
+nb_execution_mode = "force"  # Execute all code cells
+nb_execution_timeout = 120  # Timeout in seconds
+nb_execution_raise_on_error = True  # Raise errors if execution fails
 
 sphinx_gallery_conf = {
     "examples_dirs": [

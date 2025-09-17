@@ -30,12 +30,14 @@ dev = [
 ]
 docs = [
     "sphinx",
-    "myst-parser",
+    "myst-nb",
     "sphinx-rtd-theme",
     "sphinx-autodoc-typehints",
     "linkify-it-py",
     "sphinx-autobuild",
-    "sphinx-gallery"
+    "sphinx-gallery",
+    "ipykernel",
+    "jupyter-cache"
 ]
 
 [project.urls]
