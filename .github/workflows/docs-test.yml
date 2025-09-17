@@ -8,7 +8,10 @@ on:
 
 jobs:
   docs-test:
-    runs-on: ubuntu-latest
+    runs-on: linux.g5.4xlarge.nvidia.gpu
+    container:
+      image: nvidia/cuda:12.9.1-devel-ubuntu24.04
+      options: --gpus all
     defaults:
       run:
         shell: bash -l {0}
