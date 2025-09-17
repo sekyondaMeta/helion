@@ -35,7 +35,6 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
-    "myst_parser",
     "myst_nb",
     "sphinx_autodoc_typehints",
     "sphinx_gallery.gen_gallery",
