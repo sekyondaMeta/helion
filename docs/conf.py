@@ -98,6 +98,8 @@ html_theme_options = {
     "show_lf_footer": False,
     "logo": {
         "text": "",
+        "image_light": "_static/helion_logo.svg",
+        "image_dark": "_static/helion_logo.svg",
     },
     "icon_links": [
         {
