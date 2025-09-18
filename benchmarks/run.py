@@ -67,6 +67,21 @@ KERNEL_MAPPINGS: dict[str, tuple[str, ...]] = {  # pyright: ignore[reportAssignm
         "examples.geglu",
         "geglu_tritonbench",
     ),
+    "swiglu": (
+        "tritonbench.operators.swiglu.operator",
+        "examples.swiglu",
+        "swiglu_tritonbench",
+    ),
+    "jsd": (
+        "tritonbench.operators.jsd.operator",
+        "examples.jsd",
+        "jsd_tritonbench",
+    ),
+    "kl_div": (
+        "tritonbench.operators.kl_div.operator",
+        "examples.kl_div",
+        "kl_div_tritonbench",
+    ),
     "ragged_attention": (
         "tritonbench.operators.ragged_attention.operator",
         "examples.jagged_hstu_attn",
@@ -131,7 +146,7 @@ KERNEL_MAPPINGS: dict[str, tuple[str, ...]] = {  # pyright: ignore[reportAssignm
     "layer_norm": (
         "tritonbench.operators.layer_norm.operator",
         "examples.layer_norm",
-        "layer_norm",
+        "layer_norm_tritonbench",
     ),
     "jagged_softmax": (
         "tritonbench.operators.jagged_softmax.operator",
@@ -145,6 +160,16 @@ KERNEL_MAPPINGS: dict[str, tuple[str, ...]] = {  # pyright: ignore[reportAssignm
             ("examples.matmul", "matmul_tritonbench"),
             ("examples.matmul_split_k", "matmul_split_k_tritonbench"),
         ],
+    ),
+    "welford": (
+        "tritonbench.operators.welford.operator",
+        "examples.welford",
+        "welford",
+    ),
+    "int4_gemm": (
+        "tritonbench.operators.int4_gemm.int4_gemm",
+        "examples.int4_gemm",
+        "int4_gemm_tritonbench",
     ),
 }
 
@@ -214,6 +239,46 @@ KERNEL_METRIC_MAPPINGS: dict[str, dict[str, str]] = {
         "helion_geglu_tritonbench-speedup": "helion_speedup",
         "helion_geglu_tritonbench-accuracy": "helion_accuracy",
     },
+    "swiglu": {
+        "liger_swiglu-speedup": "triton_speedup",
+        "liger_swiglu-accuracy": "triton_accuracy",
+        "torch_compile_swiglu-speedup": "torch_compile_speedup",
+        "torch_compile_swiglu-accuracy": "torch_compile_accuracy",
+        "helion_swiglu_tritonbench-speedup": "helion_speedup",
+        "helion_swiglu_tritonbench-accuracy": "helion_accuracy",
+    },
+    "jsd": {
+        "liger_jsd-speedup": "triton_speedup",
+        "liger_jsd-accuracy": "triton_accuracy",
+        "torch_compile_jsd-speedup": "torch_compile_speedup",
+        "torch_compile_jsd-accuracy": "torch_compile_accuracy",
+        "helion_jsd_tritonbench-speedup": "helion_speedup",
+        "helion_jsd_tritonbench-accuracy": "helion_accuracy",
+    },
+    "welford": {
+        "test_welford-speedup": "triton_speedup",
+        "test_welford-accuracy": "triton_accuracy",
+        "torch_compile_layer_norm-speedup": "torch_compile_speedup",
+        "torch_compile_layer_norm-accuracy": "torch_compile_accuracy",
+        "helion_welford-speedup": "helion_speedup",
+        "helion_welford-accuracy": "helion_accuracy",
+    },
+    "kl_div": {
+        "liger_kl_div-speedup": "triton_speedup",
+        "liger_kl_div-accuracy": "triton_accuracy",
+        "torch_compile_kl_div-speedup": "torch_compile_speedup",
+        "torch_compile_kl_div-accuracy": "torch_compile_accuracy",
+        "helion_kl_div_tritonbench-speedup": "helion_speedup",
+        "helion_kl_div_tritonbench-accuracy": "helion_accuracy",
+    },
+    "int4_gemm": {
+        "triton_int4_gemm-speedup": "triton_speedup",
+        "triton_int4_gemm-accuracy": "triton_accuracy",
+        "torch_compile_int4_gemm-speedup": "torch_compile_speedup",
+        "torch_compile_int4_gemm-accuracy": "torch_compile_accuracy",
+        "helion_int4_gemm_tritonbench-speedup": "helion_speedup",
+        "helion_int4_gemm_tritonbench-accuracy": "helion_accuracy",
+    },
 }
 
 
@@ -260,6 +325,7 @@ def check_and_setup_tritonbench() -> None:
     # Clone to benchmarks/tritonbench
     benchmarks_dir = Path(__file__).parent
     tritonbench_path = benchmarks_dir / "tritonbench"
+    print(f"Using tritonbench path: {tritonbench_path}")
 
     try:
         # Clone the repository if it doesn't exist
@@ -504,7 +570,7 @@ def run_kernel_variants(
                         # This ensures we run autotuning even if the kernel has pre-specified configs
                         if os.environ.get("HELION_USE_DEFAULT_CONFIG", "0") != "1":
                             attr.settings.force_autotune = True
-                            attr.settings.static_shape = True  # pyright: ignore[reportAttributeAccessIssue]
+                            attr.settings.static_shapes = True
 
                 if isinstance(kfunc, Kernel):
                     # Helion kernel - we call it in a lambda to delay execution until measurement
