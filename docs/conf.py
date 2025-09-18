@@ -45,7 +45,6 @@ extensions = [
     "sphinxcontrib.mermaid",
     "pytorch_sphinx_theme2",
     "sphinxext.opengraph",
-    "sphinx.ext.linkcode",
 ]
 
 # MyST parser configuration
@@ -109,7 +108,7 @@ html_theme_options = {
         },
         {
             "name": "GitHub",
-            "url": "https://github.com/pytorch/<your-repo>",
+            "url": "https://github.com/pytorch/helion",
             "icon": "fa-brands fa-github",
         },
         {
@@ -119,7 +118,7 @@ html_theme_options = {
         },
         {
             "name": "PyPi",
-            "url": "https://pypi.org/project/<your-project>/",
+            "url": "https://pypi.org/project/helion",
             "icon": "fa-brands fa-python",
         },
     ],
@@ -138,10 +137,10 @@ html_context = {
     "display_github": True,
     "github_url": "https://github.com",
     "github_user": "pytorch",
-    "github_repo": "<your-repo>",
-    "feedback_url": "https://github.com/pytorch/<path-to-your-repo>",
+    "github_repo": "helion",
+    "feedback_url": "https://github.com/pytorch/helion",
     "github_version": "main",
-    "doc_path": "docs/source",
+    "doc_path": "docs/",
     "library_links": theme_variables.get("library_links", []),
     "community_links": theme_variables.get("community_links", []),
     "language_bindings_links": html_theme_options.get("language_bindings_links", []),
@@ -230,38 +229,3 @@ def setup(app: SphinxApp) -> dict[str, str]:
     """Setup function to register the event handler."""
     app.connect("source-read", remove_sphinx_gallery_content)
     return {"version": "0.1"}
-
-
-def linkcode_resolve(domain, info):
-    if domain != "py":
-        return None
-    if not info["module"]:
-        return None
-
-    try:
-        module = __import__(info["module"], fromlist=[""])
-        obj = module
-        for part in info["fullname"].split("."):
-            obj = getattr(obj, part)
-        # Get the source file and line number
-        obj = inspect.unwrap(obj)
-        fn = inspect.getsourcefile(obj)
-        source, lineno = inspect.getsourcelines(obj)
-    except Exception:
-        return None
-
-    # Determine the tag based on the torch_version
-    if RELEASE:
-        version_parts = torch_version.split(
-            "."
-        )  # For release versions, format as "vX.Y.Z" for correct path in repo
-        patch_version = (
-            version_parts[2].split("+")[0].split("a")[0]
-        )  # assuming a0 always comes after release version in versions.txt
-        version_path = f"v{version_parts[0]}.{version_parts[1]}.{patch_version}"
-    else:
-        version_path = torch.version.git_version
-    fn = os.path.relpath(fn, start=os.path.dirname(torch.__file__))
-    return (
-        f"https://github.com/pytorch/pytorch/blob/{version_path}/torch/{fn}#L{lineno}"
-    )
