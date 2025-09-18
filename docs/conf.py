@@ -6,8 +6,7 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Callable
-from typing import Protocol
+from typing import Callable, Protocol
 
 import pytorch_sphinx_theme2  # pyright: ignore[reportMissingImports]
 
@@ -149,7 +148,7 @@ html_context = {
             "current": True,
         },
         {
-            "name": "TorchInductor",
+            "name": "torch.compiler",
             "url": "https://pytorch.org/docs/stable/torch.compiler.html",
         },
         {
