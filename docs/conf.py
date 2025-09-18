@@ -6,7 +6,8 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Callable, Protocol
+from typing import Callable
+from typing import Protocol
 
 import pytorch_sphinx_theme2  # pyright: ignore[reportMissingImports]
 
