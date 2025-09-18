@@ -142,7 +142,25 @@ html_context = {
     "feedback_url": "https://github.com/pytorch/helion",
     "github_version": "main",
     "doc_path": "docs/",
-    "library_links": theme_variables.get("library_links", []),
+    "library_links": [
+        {
+            "name": "Helion",
+            "url": "https://pytorch.github.io/helion/",
+            "current": True,
+        },
+        {
+            "name": "TorchInductor",
+            "url": "https://pytorch.org/docs/stable/torch.compiler.html",
+        },
+        {
+            "name": "PyTorch",
+            "url": "https://pytorch.org/docs/stable/",
+        },
+        {
+            "name": "Triton",
+            "url": "https://triton-lang.org/main/",
+        },
+    ],
     "community_links": theme_variables.get("community_links", []),
     "language_bindings_links": html_theme_options.get("language_bindings_links", []),
 }
