@@ -237,6 +237,10 @@ class IncorrectTileUsage(BaseError):
     message = "Tiles can only be used in tensor indexing (`x[tile]`) or in `hl.*` ops (e.g. `hl.zeros(tile)`), used in {}"
 
 
+class TileOfTile(BaseError):
+    message = "Expected size arg to `hl.tile` got `Tile`, consider using `hl.tile(other_tile.begin, other_tile.end)`."
+
+
 class TracedArgNotSupported(BaseError):
     message = "{!s} is not supported as an arg to traced functions."
 
@@ -364,6 +368,13 @@ class NotAllowedInHelperFunction(BaseError):
 
 class CannotModifyHostVariableOnDevice(BaseError):
     message = "Cannot modify host variable '{0}' inside `hl.tile` or `hl.grid` loop without subscript assignment. Use '{0}[tile] = ...' instead."
+
+
+class AtomicOnDeviceTensor(BaseError):
+    message = (
+        "hl.{0}() target must be host-allocated tensor (i.e. allocated outside of hl.tile or hl.grid loop). "
+        "Tensors created inside device loops do not have an addressable pointer for atomics."
+    )
 
 
 class CannotReadDeviceVariableOnHost(BaseError):

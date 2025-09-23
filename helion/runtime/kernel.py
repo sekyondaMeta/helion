@@ -382,6 +382,12 @@ class BoundKernel(Generic[_R]):
         """
         return self.kernel.configs
 
+    def format_kernel_decorator(self, config: Config, settings: Settings) -> str:
+        """Return the @helion.kernel decorator snippet capturing configs and settings that influence Triton code generation."""
+        return (
+            f"@helion.kernel(config={config!r}, static_shapes={settings.static_shapes})"
+        )
+
     def to_triton_code(
         self, config: ConfigLike | None = None, emit_repro_caller: bool = False
     ) -> str:
@@ -425,10 +431,18 @@ class BoundKernel(Generic[_R]):
             )
         if (rv := self._compile_cache.get(config)) is not None:
             return rv
-        triton_code = self.to_triton_code(
-            config, emit_repro_caller=self.settings.print_output_code
-        )
-        module = PyCodeCache.load(triton_code)
+        try:
+            triton_code = self.to_triton_code(
+                config, emit_repro_caller=self.settings.print_output_code
+            )
+            module = PyCodeCache.load(triton_code)
+        except Exception:
+            log.warning(
+                "Helion compiler triton codegen error for %s",
+                self.format_kernel_decorator(config, self.settings),
+                exc_info=True,
+            )
+            raise
         if allow_print:
             log.info("Output code: \n%s", triton_code)
             log.info("Output code written to: %s", module.__file__)
@@ -554,7 +568,8 @@ class BoundKernel(Generic[_R]):
             return configs[0]
         if len(configs) == 0 and self.kernel.settings.use_default_config:
             config = self.config_spec.default_config()
-            print(f"Using default config: {config}", file=sys.stderr)
+            kernel_decorator = self.format_kernel_decorator(config, self.settings)
+            print(f"Using default config: {kernel_decorator}", file=sys.stderr)
             return config
         return None
 

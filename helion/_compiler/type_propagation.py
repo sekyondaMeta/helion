@@ -271,6 +271,21 @@ class TypeInfo:
             # This allows zip to work in list comprehensions
             zipped_tuples = tuple(tuple(items) for items in value)
             return cls.from_example(zipped_tuples, origin)
+        if isinstance(value, torch.cuda._CudaDeviceProperties):
+            attrs = {}
+            env = CompileEnvironment.current()
+
+            # Only `multi_processor_count` attribute is supported for now
+            # TODO(yf225): support other torch.cuda._CudaDeviceProperties attributes
+            attr_origin = AttributeOrigin(origin, "multi_processor_count")
+            # Create a symbolic integer that can be passed as kernel argument
+            sym = env.create_unbacked_symint()
+            HostFunction.current().expr_to_origin[sym._sympy_()] = SymbolOrigin(
+                origin=attr_origin
+            )
+            attrs["multi_processor_count"] = SymIntType(attr_origin, sym)
+
+            return ClassType(origin, attrs)
         raise exc.UnsupportedPythonType(type(value).__name__)
 
     @staticmethod
@@ -1049,6 +1064,19 @@ class TileIndexType(TypeInfo):
         return super().propagate_attribute(attr, origin)
 
 
+class BlockSizeType(SymIntType):
+    """Type for block sizes registered via register_block_size"""
+
+    block_id: int
+
+    def __init__(self, origin: Origin, value: torch.SymInt, block_id: int) -> None:
+        super().__init__(origin, value)
+        self.block_id = block_id
+
+    def __str__(self) -> str:
+        return f"{type(self).__name__}({self.block_id})"
+
+
 class GridIndexType(SymIntType):
     block_id: int
 
@@ -1306,7 +1334,15 @@ class DictType(CollectionType):
 
 class ClassType(DictType):
     def propagate_attribute(self, attr: str, origin: AttributeOrigin) -> TypeInfo:
-        return self.element_types[attr]
+        try:
+            return self.element_types[attr]
+        except KeyError:
+            desc = str(
+                getattr(origin.value, "location", origin.value.__class__.__name__)
+            )
+            raise exc.TypeInferenceError(
+                f"Attribute '{attr}' is not supported on {desc}"
+            ) from None
 
 
 class StackTensorType(ClassType):

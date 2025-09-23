@@ -12,6 +12,7 @@ from helion._testing import RefEagerTestBase
 from helion._testing import TestCase
 from helion._testing import check_example
 from helion._testing import import_path
+from helion._testing import is_cuda
 from helion._testing import skipIfRefEager
 from helion._testing import skipIfRocm
 
@@ -1030,6 +1031,78 @@ class TestExamples(RefEagerTestBase, TestCase):
             )
         )
 
+    def test_grouped_gemm_jagged(self):
+        # Build small jagged grouped GEMM inputs
+        torch.manual_seed(0)
+        G = 3
+        K, N = 64, 64
+        dtype = torch.bfloat16
+        group_A = [
+            torch.randn(32 * (i + 1), K, device=DEVICE, dtype=dtype).contiguous()
+            for i in range(G)
+        ]
+        B_shared = torch.randn(K, N, device=DEVICE, dtype=dtype).contiguous()
+
+        # Pack A and offsets
+        M_sizes = [int(a.size(0)) for a in group_A]
+        starts = [0]
+        for m in M_sizes:
+            starts.append(starts[-1] + m)
+        group_offsets = torch.tensor(starts, device=DEVICE, dtype=torch.int32)
+        A_packed = torch.cat(group_A, dim=0).contiguous()
+
+        # Reference result
+        expected = torch.cat([a @ B_shared for a in group_A], dim=0)
+
+        # Run kernel and check
+        args = (A_packed, B_shared, group_offsets)
+        self.assertExpectedJournal(
+            check_example(
+                "grouped_gemm",
+                args,
+                expected,
+                fn_name="grouped_gemm_jagged",
+            )
+        )
+
+    def test_grouped_gemm_jagged_persistent(self):
+        # Build small jagged grouped GEMM inputs
+        torch.manual_seed(0)
+        G = 3
+        K, N = 64, 64
+        dtype = torch.bfloat16
+        group_A = [
+            torch.randn(32 * (i + 1), K, device=DEVICE, dtype=dtype).contiguous()
+            for i in range(G)
+        ]
+        B_shared = torch.randn(K, N, device=DEVICE, dtype=dtype).contiguous()
+
+        # Pack A and offsets
+        M_sizes = [int(a.size(0)) for a in group_A]
+        starts = [0]
+        for m in M_sizes:
+            starts.append(starts[-1] + m)
+        group_offsets = torch.tensor(starts, device=DEVICE, dtype=torch.int32)
+        A_packed = torch.cat(group_A, dim=0).contiguous()
+
+        # Reference result
+        expected = torch.cat([a @ B_shared for a in group_A], dim=0)
+
+        # Run kernel and check
+        args = (
+            A_packed,
+            B_shared,
+            group_offsets,
+        )
+        self.assertExpectedJournal(
+            check_example(
+                "grouped_gemm",
+                args,
+                expected,
+                fn_name="grouped_gemm_jagged_persistent",
+            )
+        )
+
     def test_geglu(self):
         args = (
             torch.randn([1024, 1024], device=DEVICE, dtype=torch.float16),
@@ -1111,6 +1184,29 @@ class TestExamples(RefEagerTestBase, TestCase):
                 num_stages=3,
             )
         )
+
+    def test_gather_gemv(self):
+        args = (
+            torch.randn([8, 1024, 1024], device=DEVICE, dtype=torch.float32),
+            torch.randint(0, 8, [2], device=DEVICE, dtype=torch.int32),
+            torch.randn([1024], device=DEVICE, dtype=torch.float32),
+        )
+
+        def expected(w, idx, x):
+            return w[idx].to(x.dtype) @ x
+
+        code = check_example(
+            "gather_gemv",
+            args,
+            expected(*args),
+            fn_name="gather_gemv",
+            block_sizes=[16, 16],
+            num_warps=8,
+            num_stages=1,
+        )
+
+        if is_cuda():
+            self.assertExpectedJournal(code)
 
     def test_int4_gemm(self):
         # Matrix dimensions

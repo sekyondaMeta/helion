@@ -28,6 +28,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from pprint import pformat
 import subprocess
 import sys
 import tempfile
@@ -35,6 +36,32 @@ from typing import Any
 from typing import Callable
 
 import torch
+from torch.utils._pytree import tree_leaves
+from torch.utils._pytree import tree_map
+
+
+def log_tensor_metadata(args: tuple[object, ...], kwargs: dict[str, object]) -> None:
+    structure = (args, kwargs)
+    if not any(isinstance(leaf, torch.Tensor) for leaf in tree_leaves(structure)):
+        return
+
+    def describe_tensor(obj: object) -> object:
+        if isinstance(obj, torch.Tensor):
+            return {
+                "shape": tuple(obj.shape),
+                "stride": tuple(obj.stride()),
+                "dtype": str(obj.dtype),
+                "device": str(obj.device),
+            }
+        return obj
+
+    described_args, described_kwargs = tree_map(describe_tensor, structure)
+
+    logger.warning(
+        "Input tensor metadata:\n%s",
+        pformat({"args": described_args, "kwargs": described_kwargs}, indent=2),
+    )
+
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -153,6 +180,13 @@ KERNEL_MAPPINGS: dict[str, tuple[str, ...]] = {  # pyright: ignore[reportAssignm
         "examples.jagged_softmax",
         "jagged_softmax_tritonbench",
     ),
+    "grouped_gemm": (
+        "tritonbench.operators.grouped_gemm.operator",
+        [
+            ("examples.grouped_gemm", "grouped_gemm_jagged_tritonbench"),
+            ("examples.grouped_gemm", "grouped_gemm_jagged_persistent_tritonbench"),
+        ],
+    ),
     # Multiple kernel variants:
     "gemm": (
         "tritonbench.operators.gemm.operator",
@@ -165,6 +199,11 @@ KERNEL_MAPPINGS: dict[str, tuple[str, ...]] = {  # pyright: ignore[reportAssignm
         "tritonbench.operators.welford.operator",
         "examples.welford",
         "welford",
+    ),
+    "gather_gemv": (
+        "tritonbench.operators.gather_gemv.operator",
+        "examples.gather_gemv",
+        "gather_gemv_tritonbench",
     ),
     "int4_gemm": (
         "tritonbench.operators.int4_gemm.int4_gemm",
@@ -271,6 +310,14 @@ KERNEL_METRIC_MAPPINGS: dict[str, dict[str, str]] = {
         "helion_kl_div_tritonbench-speedup": "helion_speedup",
         "helion_kl_div_tritonbench-accuracy": "helion_accuracy",
     },
+    "gather_gemv": {
+        "test_0-speedup": "triton_speedup",
+        "test_0-accuracy": "triton_accuracy",
+        "test_inductor-speedup": "torch_compile_speedup",
+        "test_inductor-accuracy": "torch_compile_accuracy",
+        "helion_gather_gemv_tritonbench-speedup": "helion_speedup",
+        "helion_gather_gemv_tritonbench-accuracy": "helion_accuracy",
+    },
     "int4_gemm": {
         "triton_int4_gemm-speedup": "triton_speedup",
         "triton_int4_gemm-accuracy": "triton_accuracy",
@@ -278,6 +325,14 @@ KERNEL_METRIC_MAPPINGS: dict[str, dict[str, str]] = {
         "torch_compile_int4_gemm-accuracy": "torch_compile_accuracy",
         "helion_int4_gemm_tritonbench-speedup": "helion_speedup",
         "helion_int4_gemm_tritonbench-accuracy": "helion_accuracy",
+    },
+    "grouped_gemm": {
+        "triton-speedup": "triton_speedup",
+        "triton-accuracy": "triton_accuracy",
+        "pt2_triton_grouped_mm-speedup": "torch_compile_speedup",
+        "pt2_triton_grouped_mm-accuracy": "torch_compile_accuracy",
+        "helion_grouped_gemm_jagged_persistent_tritonbench-speedup": "helion_speedup",
+        "helion_grouped_gemm_jagged_persistent_tritonbench-accuracy": "helion_accuracy",
     },
 }
 
@@ -557,6 +612,8 @@ def run_kernel_variants(
                 **kwargs: object,
             ) -> Callable[..., object]:
                 """Helion implementation."""
+
+                log_tensor_metadata(args, kwargs)
 
                 # Reset all Helion kernels before creating the benchmark function
                 # so that each input size can go through its own autotuning.

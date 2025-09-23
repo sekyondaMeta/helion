@@ -110,9 +110,11 @@ jobs:
 
       - name: Run Benchmark
         run: |
+          rm -rf /tmp/torchinductor_*/ || true
+
           source .venv/bin/activate
 
-          KERNELS=("geglu" "swiglu" "jsd" "welford" "kl_div" "int4_gemm" "layer_norm" "softmax" "rms_norm" "cross_entropy")
+          KERNELS=("softmax" "geglu" "swiglu" "jsd" "welford" "kl_div" "int4_gemm" "layer_norm" "rms_norm" "cross_entropy")
           NUMSHARDS=${{ matrix.num_shards }}
           SHARD=${{ matrix.shard }}
 
@@ -135,6 +137,7 @@ jobs:
               --kernel $KERNEL_LIST \
               --metrics speedup,accuracy \
               --latency-measure-mode profiler \
+              --exit-on-exception
 
           # Relax the GPU
           sleep 5m
@@ -144,7 +147,8 @@ jobs:
               --kernel $KERNEL_LIST \
               --metrics speedup,accuracy \
               --latency-measure-mode profiler \
-              --output "$TEST_REPORTS_DIR/helionbench.json"
+              --output "$TEST_REPORTS_DIR/helionbench.json" \
+              --exit-on-exception
 
           if [[ ! -s "$TEST_REPORTS_DIR/helionbench.json" ]]; then
             echo "❌ helionbench.json is missing or empty"

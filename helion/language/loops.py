@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from .._compiler.inductor_lowering import CodegenState
+    from .constexpr import ConstExpr
 
 
 __all__ = ["grid", "static_range", "tile"]
@@ -326,6 +327,7 @@ def _(
         block_size_list = cast(
             "list[int | torch.SymInt | torch.Tensor | None]", proxy_block_size
         )
+    block_size_list = Tile._tiles_to_sizes(block_size_list)
 
     results = []
     for begin_part, end_part, bs in zip(
@@ -334,6 +336,8 @@ def _(
         block_size_list,
         strict=True,
     ):
+        if isinstance(begin_part, Tile) or isinstance(end_part, Tile):
+            raise exc.TileOfTile
         size = end_part - begin_part  # type: ignore[operator]
         if isinstance(size, torch.Tensor):
             size = None  # data dependent size
@@ -572,10 +576,14 @@ def _codegen_loop_helper(
     is_device_loop=True, is_device_only=False, cache_type=True, tiles_as_sizes=True
 )
 def grid(
-    begin_or_end: int | torch.Tensor,
-    end_or_none: int | torch.Tensor | None = None,
+    begin_or_end: int | torch.Tensor | ConstExpr,
+    end_or_none: int | torch.Tensor | ConstExpr | None = None,
     /,
-    step: int | torch.Tensor | Sequence[int | torch.Tensor] | None = None,
+    step: int
+    | torch.Tensor
+    | ConstExpr
+    | Sequence[int | torch.Tensor | ConstExpr]
+    | None = None,
 ) -> Iterator[torch.SymInt]: ...
 
 
@@ -585,10 +593,14 @@ def grid(
     is_device_loop=True, is_device_only=False, cache_type=True, tiles_as_sizes=True
 )
 def grid(
-    begin_or_end: Sequence[int | torch.Tensor],
-    end_or_none: Sequence[int | torch.Tensor] | None = None,
+    begin_or_end: Sequence[int | torch.Tensor | ConstExpr],
+    end_or_none: Sequence[int | torch.Tensor | ConstExpr] | None = None,
     /,
-    step: int | torch.Tensor | Sequence[int | torch.Tensor] | None = None,
+    step: int
+    | torch.Tensor
+    | ConstExpr
+    | Sequence[int | torch.Tensor | ConstExpr]
+    | None = None,
 ) -> Iterator[Sequence[torch.SymInt]]: ...
 
 
@@ -597,10 +609,21 @@ def grid(
     is_device_loop=True, is_device_only=False, cache_type=True, tiles_as_sizes=True
 )
 def grid(
-    begin_or_end: int | torch.Tensor | Sequence[int | torch.Tensor],
-    end_or_none: int | torch.Tensor | Sequence[int | torch.Tensor] | None = None,
+    begin_or_end: int
+    | torch.Tensor
+    | ConstExpr
+    | Sequence[int | torch.Tensor | ConstExpr],
+    end_or_none: int
+    | torch.Tensor
+    | ConstExpr
+    | Sequence[int | torch.Tensor | ConstExpr]
+    | None = None,
     /,
-    step: int | torch.Tensor | Sequence[int | torch.Tensor] | None = None,
+    step: int
+    | torch.Tensor
+    | ConstExpr
+    | Sequence[int | torch.Tensor | ConstExpr]
+    | None = None,
 ) -> Iterator[torch.SymInt] | Iterator[Sequence[torch.SymInt]]:  # type: ignore[type-arg]
     """Iterate over individual indices of the given iteration space.
 

@@ -165,6 +165,29 @@ class TestLoops(RefEagerTestBase, TestCase):
         )
         self.assertExpectedJournal(code)
 
+    def test_use_block_size_var_without_hl_tile(self):
+        """Test that block size var can be used without hl.tile()."""
+
+        @helion.kernel(static_shapes=False)
+        def copy_blockwise(x: torch.Tensor) -> torch.Tensor:
+            n = x.size(0)
+            BLOCK = hl.register_block_size(4, 16)
+            out = torch.zeros_like(x)
+            num_tiles = (n + BLOCK - 1) // BLOCK
+            for tile_id in hl.grid(num_tiles):
+                base = tile_id * BLOCK
+                idx = base + hl.arange(BLOCK)
+                mask = idx < n
+                values = hl.load(x, [idx], extra_mask=mask)
+                hl.store(out, [idx], values, extra_mask=mask)
+            return out
+
+        x = torch.arange(37, device=DEVICE, dtype=torch.float32)
+        code, result = code_and_output(copy_blockwise, (x,), block_sizes=[16])
+        torch.testing.assert_close(result, x)
+        self.assertIn("_BLOCK_SIZE_0: tl.constexpr", code)
+        self.assertIn("tl.arange(0, _BLOCK_SIZE_0)", code)
+
     @skipIfRefEager(
         "Test is block size dependent which is not supported in ref eager mode"
     )
@@ -300,6 +323,45 @@ class TestLoops(RefEagerTestBase, TestCase):
         self.assertEqual(spec.size_hint, 1024)
         self.assertEqual(spec.min_size, 32)
         self.assertEqual(spec.max_size, 256)
+
+    @skipIfRefEager("Triton codegen is disabled in ref eager mode")
+    def test_register_block_size_codegen_size_hint(self):
+        @helion.kernel(static_shapes=True)
+        def kernel_fixed_block_size(
+            y_pred: torch.Tensor,
+            y_true: torch.Tensor,
+        ) -> torch.Tensor:
+            BT, V_local = y_pred.shape
+
+            loss = torch.zeros((BT,), dtype=torch.float32, device=y_pred.device)
+            kl_loss = torch.zeros_like(y_pred)
+
+            block_size_n = hl.register_block_size(V_local)
+            BT_SIZE = 64
+            loss_sum = torch.zeros(
+                [BT_SIZE, block_size_n], dtype=torch.float32, device=y_pred.device
+            )
+
+            for tile_bt in hl.tile(BT, block_size=BT_SIZE):
+                loss_sum[:, :] = hl.zeros([BT_SIZE, block_size_n], dtype=torch.float32)
+                for tile_v in hl.tile(V_local, block_size=block_size_n):
+                    y_true_val = y_true[tile_bt, tile_v]
+                    kl_loss[tile_bt, tile_v] = y_true_val
+                    hl.atomic_add(loss_sum, [tile_bt, tile_v], kl_loss[tile_bt, tile_v])
+
+                loss[tile_bt] = loss_sum[:, :].sum(dim=-1)
+
+            return torch.sum(loss) / BT
+
+        y_pred = torch.randn(64, 128, device=DEVICE, dtype=torch.float32)
+        y_true = torch.randn(64, 128, device=DEVICE, dtype=torch.float32)
+        args = (y_pred, y_true)
+
+        code, result = code_and_output(kernel_fixed_block_size, args, block_sizes=[128])
+        self.assertExpectedJournal(code)
+
+        expected = y_true[:, : y_pred.size(0)].sum() / y_pred.size(0)
+        torch.testing.assert_close(result, expected)
 
     def test_reorder_with_register_block_size(self):
         @helion.kernel(
@@ -755,6 +817,25 @@ class TestLoops(RefEagerTestBase, TestCase):
         self.assertNotIn("flatten", code_none)
         self.assertIn("flatten=True", code_true)
         self.assertIn("flatten=False", code_false)
+
+    def test_specialize_shape_sequence(self):
+        @helion.kernel()
+        def specialize_shape_kernel(x: torch.Tensor) -> torch.Tensor:
+            shape = hl.specialize(x.shape)
+            m, n = shape
+            out = torch.empty_like(x)
+            for tile_m, tile_n in hl.tile([m, n]):
+                out[tile_m, tile_n] = x[tile_m, tile_n] + 1
+            return out
+
+        args = (torch.randn([32, 16], device=DEVICE),)
+        code, result = code_and_output(
+            specialize_shape_kernel,
+            args,
+            block_sizes=[16, 8],
+        )
+        torch.testing.assert_close(result, args[0] + 1)
+        self.assertIn("shape = (32, 16)", code)
 
     def test_static_range_2d(self):
         @helion.kernel()
