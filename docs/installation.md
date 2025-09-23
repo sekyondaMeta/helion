@@ -1,5 +1,16 @@
 # Installation
 
+```{toctree}
+:maxdepth: 2
+:hidden:
+
+system-requirements
+installation-methods
+step-by-step-setup
+verification
+development-dependencies
+```
+
 ## System Requirements
 
 Helion currently targets Linux systems and requires a recent Python and PyTorch environment:
