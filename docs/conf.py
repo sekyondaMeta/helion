@@ -166,7 +166,7 @@ html_context = {
 html_sidebars = {
     "helion_puzzles": [],
     "examples/index": [],
-
+    "installation": [],
 }
 
 html_static_path = ["_static"]
