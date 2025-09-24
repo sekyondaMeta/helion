@@ -94,6 +94,7 @@ html_theme_path = [pytorch_sphinx_theme2.get_html_theme_path()]
 html_theme_options = {
     "navigation_with_keys": False,
     "analytics_id": "GTM-NPLPKN5G",
+    "canonical_url": "https://helionlang.com/",
     "show_lf_header": False,
     "show_lf_footer": False,
     "logo": {
