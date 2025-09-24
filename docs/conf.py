@@ -163,6 +163,12 @@ html_context = {
     ],
 }
 
+html_sidebars = {
+    "helion_puzzles": [],
+    "examples/index": [],
+
+}
+
 html_static_path = ["_static"]
 
 # Output directory for HTML files

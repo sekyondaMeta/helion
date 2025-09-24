@@ -2,13 +2,15 @@
 
 ```{toctree}
 :maxdepth: 2
+:caption: Installation
 :hidden:
 
-system-requirements
-installation-methods
-step-by-step-setup
-verification
-development-dependencies
+System-Requirements
+Installation-Methods
+Step-By-Step-Setup-Guide
+Verification
+Development-Dependencies
+
 ```
 
 ## System Requirements
