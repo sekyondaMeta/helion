@@ -99,7 +99,7 @@ html_theme_options = {
     "logo": {
         "text": "",
         "image_light": "_static/helion_nobackground.png",
-        "image_dark": "_static/helion_logo.png",
+        "image_dark": "_static/helion_nobackground.png",
     },
     "icon_links": [
         {
