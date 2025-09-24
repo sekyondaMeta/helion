@@ -171,11 +171,6 @@ html_sidebars = {
 
 html_static_path = ["_static"]
 
-# Add custom CSS
-html_css_files = [
-    "custom.css",
-]
-
 # Output directory for HTML files
 html_output_dir = "../site"
 
