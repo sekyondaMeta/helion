@@ -178,6 +178,13 @@ html_js_files = ["js/runllm-widget.js"]
 # Output directory for HTML files
 html_output_dir = "../site"
 
+sitemap_locales = [None]
+sitemap_excludes = [
+    "search.html",
+    "genindex.html",
+]
+sitemap_url_scheme = "{link}"
+
 # Base URL for sitemap and canonical links
 html_baseurl = "https://helionlang.com/"
 
