@@ -128,6 +128,8 @@ html_theme_options = {
     "navbar_center": "navbar-nav",
 }
 
+html_favicon = "_static/helion_nobackground.png"
+
 theme_variables = pytorch_sphinx_theme2.get_theme_variables()
 templates_path = ["_templates"]
 if pytorch_sphinx_theme2.__file__ is not None:
