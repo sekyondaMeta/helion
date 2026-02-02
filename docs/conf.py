@@ -71,11 +71,13 @@ sphinx_gallery_conf = {
     ],  # path to your example scripts
     "gallery_dirs": "examples",  # path to where to save gallery generated output
     "filename_pattern": r".*\.py$",  # Include all Python files
-    "ignore_pattern": r"(__init__|utils)\.py",  # Exclude __init__.py files
-    "plot_gallery": "False",
+    "ignore_pattern": r"(__init__|utils|distributed/.*)\.py",  # Exclude __init__.py, utils.py, and distributed examples (require multi-GPU)
+    "plot_gallery": "True",  # Execute examples during build
     "subsection_order": sphinx_gallery.sorting.ExplicitOrder(
         ["../examples", "../examples/distributed"]
-    ),  # Don't run the examples
+    ),
+    "download_all_examples": True,
+    "remove_config_comments": True,
 }
 
 # Templates path

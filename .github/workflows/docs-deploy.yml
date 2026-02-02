@@ -5,6 +5,12 @@ on:
     branches:
       - main
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Tests"]
+    types:
+      - completed
+    branches:
+      - main
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
@@ -21,6 +27,10 @@ concurrency:
 jobs:
   docs-deploy:
     runs-on: ubuntu-latest
+    # Only run if Tests workflow succeeded (when triggered by workflow_run)
+    # Always run for push and workflow_dispatch events
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+
     defaults:
       run:
         shell: bash -l {0}
@@ -43,6 +53,15 @@ jobs:
         run: |
           source .venv/bin/activate
           uv pip install -e .[docs]
+
+      - name: Download gallery cache
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: test.yml
+          name: sphinx-gallery-cache
+          path: docs/examples/
+          if_no_artifact_found: warn
+        continue-on-error: true
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

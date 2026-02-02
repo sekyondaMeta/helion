@@ -5,10 +5,18 @@ on:
   push:
     branches:
       - main
+  workflow_run:
+    workflows: ["Tests"]
+    types:
+      - completed
 
 jobs:
   docs-test:
     runs-on: ubuntu-latest
+    # Only run if Tests workflow succeeded (when triggered by workflow_run)
+    # Always run for pull_request and push events
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+
     defaults:
       run:
         shell: bash -l {0}
@@ -31,6 +39,15 @@ jobs:
         run: |
           source .venv/bin/activate
           uv pip install -e .[docs]
+
+      - name: Download gallery cache
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: test.yml
+          name: sphinx-gallery-cache
+          path: docs/examples/
+          if_no_artifact_found: warn
+        continue-on-error: true
 
       - name: Build documentation
         run: |
