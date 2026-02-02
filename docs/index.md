@@ -251,7 +251,7 @@ for DEBUG-level logs. Alternatively, you can specify logging for specific module
 (e.g., `HELION_LOGS=+helion.runtime.kernel`).
 
 
-``{toctree}
+```{toctree}
 :maxdepth: 2
 :caption: Contents
 :hidden:
@@ -259,7 +259,7 @@ for DEBUG-level logs. Alternatively, you can specify logging for specific module
 installation
 ```
 
-``{toctree}
+```{toctree}
 :maxdepth: 2
 :caption: Contents
 :hidden:
@@ -267,7 +267,7 @@ installation
 Examples <./examples/index>
 ```
 
-``{toctree}
+```{toctree}
 :maxdepth: 2
 :caption: Contents
 :hidden:
@@ -275,7 +275,7 @@ Examples <./examples/index>
 api/index
 ```
 
-``{toctree}
+```{toctree}
 :maxdepth: 2
 :caption: Contents
 :hidden:
@@ -283,7 +283,7 @@ api/index
 Puzzles <helion_puzzles>
 ```
 
-``{toctree}
+```{toctree}
 :maxdepth: 2
 :caption: Contents
 :hidden:
@@ -291,7 +291,7 @@ Puzzles <helion_puzzles>
 Deployment <deployment_autotuning>
 ```
 
-``{toctree}
+```{toctree}
 :maxdepth: 2
 :caption: Contents
 :hidden:
@@ -299,7 +299,7 @@ Deployment <deployment_autotuning>
 TileIR Backend <tileir_backend>
 ```
 
-``{toctree}
+```{toctree}
 :maxdepth: 2
 :caption: Contents
 :hidden:
