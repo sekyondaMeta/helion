@@ -1,20 +1,5 @@
 # Helion Documentation
 
-```{toctree}
-:maxdepth: 2
-:caption: Contents
-:hidden:
-
-installation
-Examples <./examples/index>
-api/index
-Puzzles <helion_puzzles>
-Deployment <deployment_autotuning>
-TileIR Backend <tileir_backend>
-events
-
-```
-
 **Helion** is a Python-embedded domain-specific language (DSL) for
 authoring machine learning kernels, designed to compile down to [Triton],
 a performant backend for programming GPUs and other devices. Helion aims
@@ -264,3 +249,61 @@ variable will be ignored.
 Enable logging by setting the environment variable `HELION_LOGS=all` for INFO-level logs, or `HELION_LOGS=+all`
 for DEBUG-level logs. Alternatively, you can specify logging for specific modules using a comma-separated list
 (e.g., `HELION_LOGS=+helion.runtime.kernel`).
+
+
+``{toctree}
+:maxdepth: 2
+:caption: Contents
+:hidden:
+
+installation
+
+```
+``{toctree}
+:maxdepth: 2
+:caption: Contents
+:hidden:
+
+Examples <./examples/index>
+
+```
+``{toctree}
+:maxdepth: 2
+:caption: Contents
+:hidden:
+
+api/index
+
+```
+``{toctree}
+:maxdepth: 2
+:caption: Contents
+:hidden:
+
+Puzzles <helion_puzzles>
+
+```
+``{toctree}
+:maxdepth: 2
+:caption: Contents
+:hidden:
+
+Deployment <deployment_autotuning>
+
+```
+``{toctree}
+:maxdepth: 2
+:caption: Contents
+:hidden:
+
+TileIR Backend <tileir_backend>
+
+```
+``{toctree}
+:maxdepth: 2
+:caption: Contents
+:hidden:
+
+events
+
+```
