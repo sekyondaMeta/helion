@@ -39,6 +39,7 @@ docs = [
     "matplotlib",
     "myst-parser",
     "pillow",
+    "pytest",
     "pytorch_sphinx_theme2==0.2.0",
     "sphinx==7.2.6",
     "sphinx-autobuild",
