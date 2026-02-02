@@ -257,53 +257,52 @@ for DEBUG-level logs. Alternatively, you can specify logging for specific module
 :hidden:
 
 installation
-
 ```
+
 ``{toctree}
 :maxdepth: 2
 :caption: Contents
 :hidden:
 
 Examples <./examples/index>
-
 ```
+
 ``{toctree}
 :maxdepth: 2
 :caption: Contents
 :hidden:
 
 api/index
-
 ```
+
 ``{toctree}
 :maxdepth: 2
 :caption: Contents
 :hidden:
 
 Puzzles <helion_puzzles>
-
 ```
+
 ``{toctree}
 :maxdepth: 2
 :caption: Contents
 :hidden:
 
 Deployment <deployment_autotuning>
-
 ```
+
 ``{toctree}
 :maxdepth: 2
 :caption: Contents
 :hidden:
 
 TileIR Backend <tileir_backend>
-
 ```
+
 ``{toctree}
 :maxdepth: 2
 :caption: Contents
 :hidden:
 
 events
-
 ```
