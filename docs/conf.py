@@ -96,6 +96,7 @@ _IGNORE_EXAMPLES = "|".join(  # noqa: FLY002
         "squeeze_and_excitation_net",
         "jsd",
         "swiglu",
+        "layer_norm",
     ]
 )
 
