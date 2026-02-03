@@ -91,6 +91,11 @@ _IGNORE_EXAMPLES = "|".join(  # noqa: FLY002
         "int4_gemm",
         "mamba2_chunk_scan",
         "mamba2_chunk_state",
+        "cross_entropy",
+        "rms_norm",
+        "squeeze_and_excitation_net",
+        "jsd",
+        "swiglu",
     ]
 )
 
