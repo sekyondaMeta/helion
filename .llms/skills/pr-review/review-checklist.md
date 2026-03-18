@@ -6,7 +6,7 @@ This checklist covers areas that reviewers should evaluate when reviewing Helion
 
 ### Python Style
 
-> **Note:** Formatting and lint style (line length, quotes, import sorting, single imports per line, `from __future__ import annotations`) are enforced by ruff in CI — see `pyproject.toml` for configuration.
+**Note:** Formatting and lint style (line length, quotes, import sorting, single imports per line, `from __future__ import annotations`) are enforced by ruff in CI — see `pyproject.toml` for configuration.
 
 - [ ] No local scope imports unless necessary (ruff does not enforce this)
 - [ ] Type hints on function signatures in test files (`ANN` rules are disabled for `test/*`)
