@@ -5,12 +5,11 @@ This checklist covers areas that reviewers should evaluate when reviewing Helion
 ## Code Quality
 
 ### Python Style
-- [ ] Uses `from __future__ import annotations` at the top of modules
-- [ ] Type hints on function signatures
-- [ ] Line length ≤ 88 characters (ruff enforces this)
-- [ ] Double quotes for strings (ruff enforces this)
-- [ ] Imports sorted correctly (ruff/isort enforces this)
-- [ ] Single import per line; no local scope imports unless necessary
+
+> **Note:** Formatting and lint style (line length, quotes, import sorting, single imports per line, `from __future__ import annotations`) are enforced by ruff in CI — see `pyproject.toml` for configuration.
+
+- [ ] No local scope imports unless necessary (ruff does not enforce this)
+- [ ] Type hints on function signatures in test files (`ANN` rules are disabled for `test/*`)
 - [ ] snake_case for modules/files; `test_*.py` for tests
 
 ### Helion Import Conventions
