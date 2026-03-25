@@ -13,7 +13,6 @@ from helion._testing import RefEagerTestBase
 from helion._testing import TestCase
 from helion._testing import code_and_output
 from helion._testing import onlyBackends
-from helion._testing import skipIfRocm
 from helion._testing import skipIfSharedMemoryLessThan
 from helion._testing import xfailIfCute
 from helion.autotuner import EnumFragment
@@ -114,7 +113,6 @@ class TestRegisterTunable(RefEagerTestBase, TestCase):
     @skipIfSharedMemoryLessThan(
         86016, reason="num_stages=8 requires 86016 bytes of shared memory"
     )
-    @skipIfRocm("failure on rocm")
     @xfailIfCute(
         "cute: split-k matmul register_tunable path exceeds CuTe thread-block "
         "layout limits and scalar float16 atomic_add is not supported"
