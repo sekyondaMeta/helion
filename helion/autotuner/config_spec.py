@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import hashlib
+import math
 import operator
 from typing import TYPE_CHECKING
 from typing import Any
@@ -10,6 +11,7 @@ from typing import cast
 from torch._inductor.runtime.runtime_utils import next_power_of_2
 import torch.distributed as dist
 
+from .._compat import num_compute_units
 from .._compat import supports_amd_cdna_tunables
 from .._compat import supports_maxnreg
 from .._compat import supports_tensor_descriptor
@@ -551,6 +553,41 @@ class ConfigSpec:
         max_warps = 1 << (max_warps.bit_length() - 1)
         config["num_warps"] = max(DEFAULT_NUM_WARPS, max_warps)
 
+    def raise_grid_block_minimums(self) -> None:
+        """Raise min_size for grid block dimensions based on problem size.
+
+        Very small block sizes produce enormous grids that the autotuner
+        wastes time exploring.  This heuristic sets a floor so the total
+        number of blocks per dimension stays within a reasonable range
+        derived from ``num_compute_units``.
+
+        The raised minimum never exceeds the default block size that
+        ``_fragment`` would compute, so memory and shared-memory
+        constraints from non-tiled dimensions are respected.
+        """
+        if not self.grid_block_ids:
+            return
+
+        n_cus = num_compute_units()
+        n_dims = len(self.grid_block_ids)
+        max_blocks_per_dim = math.ceil((n_cus * 64) ** (1.0 / n_dims))
+
+        for grid_bid in self.grid_block_ids:
+            try:
+                spec = self.block_sizes.block_id_lookup(grid_bid)
+            except KeyError:
+                continue
+            if spec.size_hint <= 0:
+                continue
+            default = spec._fragment(self).default_val
+            min_block = spec.size_hint // max_blocks_per_dim
+            min_block = min(min_block, default)
+            if min_block >= 2:
+                min_block = 1 << (min_block.bit_length() - 1)
+                spec.autotuner_min = assert_integer_power_of_two(
+                    max(min_block, spec.autotuner_min)
+                )
+
     def create_config_generation(
         self,
         *,
@@ -768,6 +805,8 @@ class BlockSizeSpec(_PowerOfTwoBlockIdItem):
 
         bounded_hint = max(bounded_hint, 1)
         self.min_size: int = min_size
+        self.autotuner_min: int = min_size
+        bounded_hint = max(size_hint, 1)
         self.max_size: int = (
             next_power_of_2(bounded_hint) if max_size is None else max_size
         )
@@ -829,7 +868,7 @@ class BlockSizeSpec(_PowerOfTwoBlockIdItem):
         else:
             default = 1
         return BlockSizeFragment(
-            self.min_size,
+            max(self.min_size, self.autotuner_min),
             self.max_size,
             default,
         )
