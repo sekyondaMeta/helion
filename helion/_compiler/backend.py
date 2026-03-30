@@ -1132,9 +1132,9 @@ class PallasBackend(Backend):
         from ..autotuner.config_spec import BlockSizeSpec
         from .compile_environment import BlockSizeInfo
 
-        # Tiling size for 1D arrays.  Mosaic uses min(dim_size, 1024)
-        # as the tiling factor for rank-1 tensors.
-        tiling_1d = 1024
+        # Tiling size for 1D arrays.  Mosaic lowering enforces that rank-1
+        # BlockSpec block shapes are a multiple of 128 * (32 // bitwidth).
+        tiling_1d = 128 * (32 // min_element_bits)
 
         # Map block_id -> minimum dim_from_end across all tensors
         min_dim_from_end: dict[int, int] = {}
@@ -1146,7 +1146,7 @@ class PallasBackend(Backend):
                     for info in block_sizes:
                         if not isinstance(info, BlockSizeInfo):
                             continue
-                        if info.size_matches(
+                        if info.dim_matches(
                             dim_expr  # pyrefly: ignore[bad-argument-type]
                         ):
                             dfe = tensor_ndim - 1 - d
@@ -1310,21 +1310,24 @@ class PallasBackend(Backend):
                     bs = env.block_sizes[bid].from_config(config)
                     if isinstance(bs, int):
                         # For 1D tensors, the block size must be a
-                        # multiple of the 1D tiling factor (1024) or
-                        # equal to the full dimension.  If neither
-                        # holds, fall back to no BlockSpecs for the
-                        # entire kernel (matching old behavior where
-                        # 1D tensors caused full-kernel fallback).
+                        # multiple of the 1D tiling factor or equal to
+                        # the full dimension.  If neither holds, fall
+                        # back to no BlockSpecs for the entire kernel.
                         dim_size = tensor.shape[d]
-                        if (
-                            tensor.ndim == 1
-                            and isinstance(dim_size, int)
-                            and bs != dim_size
-                            and bs % 1024 != 0
-                        ):
-                            return None
+                        if tensor.ndim == 1 and isinstance(dim_size, int):
+                            bitwidth = tensor.dtype.itemsize * 8
+                            tiling_1d = 128 * (32 // bitwidth)
+                            if bs != dim_size and bs % tiling_1d != 0:
+                                return None
                         block_shape.append(bs)
-                        if flat_decomp is not None and bid in flat_decomp:
+                        # When the block covers the entire tensor
+                        # dimension there is only one tile, so the grid
+                        # index must be constant 0 — iterating would
+                        # read out-of-bounds (e.g. bias [1, N] with
+                        # block_size > 1).
+                        if isinstance(dim_size, int) and dim_size <= bs:
+                            grid_dims.append(None)
+                        elif flat_decomp is not None and bid in flat_decomp:
                             grid_dims.append(flat_decomp[bid])
                         else:
                             grid_dims.append(block_id_to_grid_dim[bid])
