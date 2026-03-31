@@ -29,9 +29,11 @@ from ._compat import get_tensor_descriptor_fn_name
 from ._compat import requires_torch_version
 from ._compat import supports_amd_cdna_tunables
 from ._compat import supports_tensor_descriptor
+from ._dist_utils import is_master_rank
 from ._utils import counters
 from .autotuner.benchmarking import sync_object as sync_object
 from .runtime.settings import _get_backend
+from helion.autotuner.base_search import _clone_args
 
 if _get_backend() == "pallas":
     from .autotuner.benchmarking import compute_repeat_generic as compute_repeat
@@ -442,10 +444,10 @@ def skipIfCudaSharedMemoryLessThan(
     *,
     reason: str | None = None,
 ) -> Callable[[Callable], Callable]:
-    """Skip test if CUDA shared memory per block is below min_shared_memory."""
+    """Skip test if GPU shared memory per block is below min_shared_memory."""
 
     def cond() -> bool:
-        if not is_cuda():
+        if not torch.cuda.is_available():
             return False
         props = torch.cuda.get_device_properties(torch.cuda.current_device())
         default_shared = cast("int", props.shared_memory_per_block)
@@ -459,7 +461,35 @@ def skipIfCudaSharedMemoryLessThan(
     return skipIfFn(
         cond,
         reason=reason
-        or f"Requires CUDA shared memory per block >= {min_shared_memory} bytes",
+        or f"Requires GPU shared memory per block >= {min_shared_memory} bytes",
+    )
+
+
+def skipIfSharedMemoryLessThan(
+    required_memory_for_config: int,
+    *,
+    reason: str | None = None,
+) -> Callable[[Callable], Callable]:
+    """Skip test if GPU shared memory per block is below required_memory_for_config.
+
+    Works on both NVIDIA (CUDA) and AMD (ROCm) GPUs.
+    """
+
+    def cond() -> bool:
+        if not torch.cuda.is_available():
+            return False
+        props = torch.cuda.get_device_properties(torch.cuda.current_device())
+        default_shared = cast("int", props.shared_memory_per_block)
+        optin_shared = cast(
+            "int | None", getattr(props, "shared_memory_per_block_optin", None)
+        )
+        max_shared = default_shared if optin_shared is None else optin_shared
+        return max_shared < required_memory_for_config
+
+    return skipIfFn(
+        cond,
+        reason=reason
+        or f"Requires shared memory per block >= {required_memory_for_config} bytes",
     )
 
 
@@ -859,6 +889,9 @@ def code_and_output(
     args: tuple[object, ...],
     **kwargs: object,
 ) -> tuple[str, object]:
+    has_device_tensor = any(
+        isinstance(value, torch.Tensor) and value.device.type != "cpu" for value in args
+    )
     bound = fn.bind(args)
     if is_ref_mode_enabled(bound.kernel.settings):
         if kwargs:
@@ -889,8 +922,17 @@ def code_and_output(
     compiled_kernel = fn.bind(args).compile_config(config)
     try:
         result = compiled_kernel(*args)
-    except Exception:
+        if has_device_tensor or (
+            isinstance(result, torch.Tensor) and result.device.type != "cpu"
+        ):
+            torch.accelerator.synchronize()
+    except Exception as exc:
         sys.stderr.write(f"Failed to run kernel:\n{code}\n")
+        if has_device_tensor:
+            try:
+                torch.accelerator.synchronize()
+            except Exception as sync_error:
+                raise exc from sync_error
         raise
     return code, result
 
@@ -904,6 +946,7 @@ def run_example(
     rtol: float = 1e-2,
     atol: float = 1e-1,
     bwd: bool = False,
+    trace_path: str | None = None,
 ) -> None:
     """Run complete example: correctness check + benchmark.
 
@@ -916,6 +959,7 @@ def run_example(
         rtol: Relative tolerance for correctness check (default: 1e-2)
         atol: Absolute tolerance for correctness check (default: 1e-1)
         bwd: Whether to also test backward pass (default: False)
+        trace_path: if not None, do profiling and save trace to this path
     """
     try:
         torch.backends.cuda.matmul.fp32_precision = "tf32"
@@ -937,9 +981,7 @@ def run_example(
         if name != first_baseline_name:
             print(f"Testing {name} correctness...", file=sys.stderr)
             # Clone args to avoid buffer donation issues (e.g., Pallas/TPU)
-            cloned_args = tuple(
-                a.clone() if isinstance(a, torch.Tensor) else a for a in args
-            )
+            cloned_args = _clone_args(args)
             result = func(*cloned_args).clone()
             torch.testing.assert_close(
                 result.to(torch.float32),
@@ -1024,7 +1066,7 @@ def run_example(
                     t.grad = None
 
     # Benchmark all functions — clone args to avoid buffer donation issues
-    cloned_args = tuple(a.clone() if isinstance(a, torch.Tensor) else a for a in args)
+    cloned_args = _clone_args(args)
     all_benchmarks = {**kernels, **baselines}
     bench_fns = [functools.partial(fn, *cloned_args) for fn in all_benchmarks.values()]
     repeat = compute_repeat(bench_fns[0])
@@ -1037,11 +1079,23 @@ def run_example(
         repeat = sync_object(repeat)
 
     # pyrefly: ignore [bad-argument-type]
-    timings = interleaved_bench(bench_fns, repeat=repeat, desc="Benchmarking")
+    profile_context = contextlib.nullcontext()
+    if trace_path is not None and is_master_rank():
+        profile_context = torch.profiler.profile()
+
+    with profile_context:
+        # pyrefly: ignore[bad-argument-type]
+        timings = interleaved_bench(bench_fns, repeat=repeat, desc="Benchmarking")
+
+    if trace_path is not None and is_master_rank():
+        print(f"Write profile to {trace_path}")
+        # pyrefly: ignore[missing-attribute]
+        profile_context.export_chrome_trace(trace_path)
+
     all_times = dict(zip(all_benchmarks.keys(), timings, strict=True))
     best_baseline_time = min(all_times[name] for name in baselines)
 
-    if not dist.is_initialized() or dist.get_rank() == 0:
+    if is_master_rank():
         # Print results (on rank 0)
         print(f"\n{'=' * 65}\nBenchmark Results\n{'=' * 65}", file=sys.stderr)
         print(
@@ -1390,13 +1444,19 @@ class TestCase(unittest.TestCase):
 
         from torch._inductor.utils import fresh_cache
 
-        self._test_stack.enter_context(fresh_cache())
+        self._test_stack.enter_context(
+            fresh_cache(
+                delete=os.getenv("HELION_DELETE_CACHE_AFTER_TEST", "1") == "1",
+            )
+        )
 
         counters.clear()
 
     def tearDown(self) -> None:
-        super().tearDown()
-        self._test_stack.close()
+        try:
+            super().tearDown()
+        finally:
+            self._test_stack.close()
 
     def assertExpectedJournal(self, value: str) -> None:
         """

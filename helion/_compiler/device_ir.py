@@ -59,6 +59,7 @@ from .type_propagation import CallableType
 from .type_propagation import DictType
 from .type_propagation import GridIndexType
 from .type_propagation import IterType
+from .type_propagation import JaggedTileIndexType
 from .type_propagation import LiteralType
 from .type_propagation import NumericType
 from .type_propagation import SequenceType
@@ -298,7 +299,7 @@ class ForLoopGraphInfo(NodeArgsGraphInfo):
         }
 
     def codegen(self, state: CodegenState) -> list[object]:
-        args = state.ast_args[-1]
+        args = state.ast_args[3]
         assert isinstance(args, list)
         assert all(isinstance(x, ast.AST) for x in args)
         with state.codegen.add_device_loop(
@@ -393,13 +394,15 @@ class WhileLoopGraphInfo(NodeArgsGraphInfo):
 
         def emit_condition(
             target_statements: list[ast.AST],
+            cond_args: list[ast.AST] | None = None,
         ) -> ast.expr:
             with state.codegen.set_statements(target_statements):
                 cond_outputs = codegen_call_with_graph(
                     state.codegen,
                     cond_info.graph,
                     # pyrefly: ignore [bad-argument-type]
-                    args,
+                    cond_args or args,
+                    copy_named_args=False,
                 )
             if len(cond_outputs) != 1:
                 raise exc.InternalError(
@@ -433,7 +436,12 @@ class WhileLoopGraphInfo(NodeArgsGraphInfo):
 
         body_statements: list[ast.AST] = []
         with state.codegen.set_statements(body_statements):
-            outputs = codegen_call_with_graph(state.codegen, self.graph, args)
+            outputs = codegen_call_with_graph(
+                state.codegen,
+                self.graph,
+                args,
+                copy_named_args=False,
+            )
         loop_condition_update: list[ast.AST] = []
         cond_expr_loop = emit_condition(loop_condition_update)
         body_statements.extend(loop_condition_update)
@@ -601,16 +609,17 @@ class DeviceIR:
             graphs_with_rolled_rdim |= used_graphs
 
     def build_codegen_graphs(self, config: Config) -> list[GraphInfo]:
-        """Build and return graph copies with reduction rolling applied.
+        """Build and return graph copies with reduction rolling and epilogue subtiling applied.
 
         Creates a temporary DeviceIR with copied graphs, applies reduction
-        rolling based on the config, and returns the resulting graphs.
-        The original graphs are never modified.
+        rolling and epilogue subtiling based on the config, and returns the
+        resulting graphs. The original graphs are never modified.
         """
 
         temp = copy.copy(self)
         temp.graphs = [g.copy() for g in self.graphs]
         temp._apply_rolling(config)
+        temp._apply_epilogue_subtiling(config)
         return temp.graphs
 
     def _apply_rolling(self, config: Config) -> None:
@@ -656,6 +665,29 @@ class DeviceIR:
                 # Replace only the graph payload to preserve root metadata
                 # (e.g., phase_index used for barrier phase splitting).
                 graph_info.graph = self.graphs[new_graph_id].graph
+
+    def _apply_epilogue_subtiling(self, config: Config) -> None:
+        """Apply epilogue subtiling on the graph copies if enabled."""
+        split_factor = config.epilogue_subtile
+        if not split_factor:
+            return
+
+        from .epilogue_subtiling import apply_epilogue_subtiling
+
+        env = CompileEnvironment.current()
+        configured_block_sizes = {
+            info.block_id: info.from_config_assert(config)
+            for info in env.block_sizes
+            if not info.reduction
+        }
+
+        for graph_info in self.graphs:
+            if isinstance(graph_info, RootGraphInfo):
+                apply_epilogue_subtiling(
+                    graph_info.graph,
+                    split_factor,
+                    configured_block_sizes,
+                )
 
     def __enter__(self) -> None:
         try:
@@ -759,6 +791,7 @@ class WalkDeviceAST(NodeVisitor):
         build_fn: Callable[[WalkDeviceAST], tuple[object, LiftTensorArgs]],
         *,
         graph_info_cls: type[NodeArgsGraphInfo],
+        copy_tensor_args: bool = True,
         **graph_kwargs: object,
     ) -> tuple[int, LiftTensorArgs]:
         outputs_holder: LiftTensorArgs | None = None
@@ -767,7 +800,9 @@ class WalkDeviceAST(NodeVisitor):
             nonlocal outputs_holder
             subgraph_walker = WalkDeviceAST(self.device_ir)
             subgraph_walker.scope.update(self._static_scope())
-            subgraph_walker.scope.update(inputs.replace_tensor_args(args))
+            subgraph_walker.scope.update(
+                inputs.replace_tensor_args(args, copy_tensors=copy_tensor_args)
+            )
             result, outputs_holder = build_fn(subgraph_walker)
             return result
 
@@ -853,23 +888,51 @@ class WalkDeviceAST(NodeVisitor):
                 return origin.is_device()
         return True
 
-    def _extract_tile_begin_end(self, for_node: ast.For) -> tuple[object, object]:
+    def _extract_tile_range(
+        self, for_node: ast.For, *, supports_step: bool
+    ) -> tuple[object, object, object | None]:
         call_node = for_node.iter
         assert isinstance(call_node, ast.Call)
         func_node = call_node.func
         assert isinstance(func_node, ExtendedAST)
         func_type = func_node._type_info
         assert isinstance(func_type, CallableType)
-        assert func_type.value in (hl.tile, hl.grid, builtins.range)
+        assert func_type.value in (hl.jagged_tile, hl.tile, hl.grid, builtins.range)
         args = call_node.args
         assert len(args) >= 1
         if len(args) == 1:
             begin = None
             end = self.visit(args[0])
+            step = (
+                next(
+                    (
+                        self.visit(keyword.value)
+                        for keyword in call_node.keywords
+                        if keyword.arg == "step"
+                    ),
+                    None,
+                )
+                if supports_step
+                else None
+            )
         else:
             begin = self.visit(args[0])
             end = self.visit(args[1])
-        return begin, end
+            step = (
+                self.visit(args[2])
+                if supports_step and len(args) >= 3
+                else next(
+                    (
+                        self.visit(keyword.value)
+                        for keyword in call_node.keywords
+                        if keyword.arg == "step"
+                    ),
+                    None,
+                )
+                if supports_step
+                else None
+            )
+        return begin, end, step
 
     def _handle_sequence_unrolling(
         self,
@@ -949,15 +1012,38 @@ class WalkDeviceAST(NodeVisitor):
         elif node._loop_type == LoopType.DEVICE:
             rw: ReadWrites = ReadWrites.from_ast(node)
             inputs = self._lift_inputs(self._rw_names(rw))
-            begin, end = self._extract_tile_begin_end(node)
+            supports_step = False
+            if isinstance(inner_type, SequenceType):
+                supports_step = all(
+                    isinstance(value, GridIndexType) for value in inner_type.unpack()
+                )
+            else:
+                supports_step = isinstance(inner_type, GridIndexType)
+            begin, end, step = self._extract_tile_range(
+                node, supports_step=supports_step
+            )
             if isinstance(inner_type, SequenceType):
                 iter_vars = inner_type.unpack()
                 if begin is None:
                     begin = [0] * len(iter_vars)
+                if step is None:
+                    step = [None] * len(iter_vars)
             else:
+                if isinstance(inner_type, JaggedTileIndexType):
+                    # hl.jagged_tile takes a 1D parent tensor, not a scalar bound.
+                    assert isinstance(end, torch.Tensor)
+                    jagged_parent = end
+
+                    # The first lifted loop input must be the jagged parent tensor.
+                    # _setup_mask uses that parent tensor to recover each lane's true end.
+                    assert inputs.flat_values[0] is jagged_parent
+
+                    end = torch.amax(jagged_parent)
+
                 iter_vars = [inner_type]
                 begin = [0] if begin is None else [begin]
                 end = [end]
+                step = [step]
             assert all(isinstance(x, (TileIndexType, GridIndexType)) for x in iter_vars)
 
             def build_subgraph(
@@ -979,18 +1065,30 @@ class WalkDeviceAST(NodeVisitor):
                 graph_info_cls=ForLoopGraphInfo,
                 block_ids=block_ids,
             )
-            args = (
-                graph_idx,
-                begin,
-                end,
-                inputs.get_tensor_args(),
-            )
+            step_list = step if isinstance(step, list) else None
+            if step_list is None or all(s is None for s in step_list):
+                args = (
+                    graph_idx,
+                    begin,
+                    end,
+                    inputs.get_tensor_args(),
+                )
+                loop_target = _tracing_ops._for_loop
+            else:
+                args = (
+                    graph_idx,
+                    begin,
+                    end,
+                    inputs.get_tensor_args(),
+                    step_list,
+                )
+                loop_target = _tracing_ops._for_loop_step
             mode = proxy_tensor.get_proxy_mode()
             assert isinstance(mode, proxy_tensor.ProxyTorchDispatchMode)
             tracer = mode.tracer
             proxy_out = tracer.create_proxy(
                 "call_function",
-                _tracing_ops._for_loop,
+                loop_target,
                 # pyrefly: ignore [bad-argument-type]
                 *args_to_proxies(tracer, args),
             )
@@ -1037,6 +1135,7 @@ class WalkDeviceAST(NodeVisitor):
             inputs,
             build_condition,
             graph_info_cls=WhileConditionGraphInfo,
+            copy_tensor_args=False,
         )
 
         def build_body(
@@ -1051,6 +1150,7 @@ class WalkDeviceAST(NodeVisitor):
             build_body,
             graph_info_cls=WhileLoopGraphInfo,
             cond_graph_id=cond_graph_id,
+            copy_tensor_args=False,
         )
 
         args = (
@@ -1491,11 +1591,13 @@ class LiftTensorArgs:
     def unflatten(self) -> dict[str, object]:
         return pytree.tree_unflatten(self.flat_values, self.spec)
 
-    def replace_tensor_args(self, args: Sequence[object]) -> dict[str, object]:
+    def replace_tensor_args(
+        self, args: Sequence[object], *, copy_tensors: bool = True
+    ) -> dict[str, object]:
         flat_values = [*self.flat_values]
         assert len(self.tensor_indices) == len(args)
         for i, v in zip(self.tensor_indices, args, strict=False):
-            flat_values[i] = _new_var(v)
+            flat_values[i] = _new_var(v) if copy_tensors else v
         return pytree.tree_unflatten(flat_values, self.spec)
 
     def get_tensor_args(self) -> list[object]:
@@ -1679,7 +1781,23 @@ def lower_to_device_ir(func: HostFunction) -> DeviceIR:
             add_tile_with_offset_metadata(graph)
             remove_unnecessary_tile_index(graph.graph)
             remove_unnecessary_masking(graph.graph)
+
+        from .epilogue_subtiling import has_epilogue_subtiling_candidate
+
+        has_epilogue_subtile_candidate = False
+        for graph_info in device_ir.graphs:
+            if not isinstance(graph_info, RootGraphInfo):
+                continue
+            if has_epilogue_subtiling_candidate(graph_info.graph):
+                has_epilogue_subtile_candidate = True
+                break
+        config_spec = CompileEnvironment.current().config_spec
+        config_spec.epilogue_subtile_candidate_enabled = has_epilogue_subtile_candidate
+        config_spec.epilogue_subtile_k_hint = 0
+        config_spec.epilogue_subtile_autotune_choices = None
+
         device_ir.register_rollable_reductions()
+        CompileEnvironment.current().config_spec.raise_grid_block_minimums()
         if len(device_ir.root_ids) > 1:
             # xyz not supported with shared program IDs, but persistent kernels are allowed
             CompileEnvironment.current().config_spec.disallow_pid_type("xyz")
